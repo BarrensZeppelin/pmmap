@@ -5,7 +5,7 @@ import (
 )
 
 // Construct a new persistent key-value map with the specified hasher.
-func NewTree[V, K any](hasher Hasher[K]) Tree[K, V] {
+func New[V, K any](hasher Hasher[K]) Tree[K, V] {
 	// Order of K and V is swapped because K can be inferred from the argument.
 	return Tree[K, V]{hasher, nil}
 }
@@ -74,7 +74,6 @@ func (tree Tree[K, V]) Size() (res int) {
 	return
 }
 
-
 func (tree Tree[K, V]) String() string {
 	buf := []string{}
 
@@ -101,9 +100,8 @@ type branch[K, V any] struct {
 	prefix keyt // Common prefix of all keys in the left and right subtrees
 	// A number with exactly one positive bit. The position of the bit
 	// determines where the prefixes of the left and right subtrees diverge.
-	branchBit keyt
-	left      node[K, V]
-	right     node[K, V]
+	branchBit   keyt
+	left, right node[K, V]
 }
 
 func (b *branch[K, V]) each(f eachFunc[K, V]) {
@@ -118,7 +116,7 @@ func (b *branch[K, V]) match(key keyt) bool {
 }
 
 type pair[K, V any] struct {
-	key K
+	key   K
 	value V
 }
 type leaf[K, V any] struct {

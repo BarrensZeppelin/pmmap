@@ -46,7 +46,7 @@ func mkTest[K any, V comparable](t *testing.T) (
 }
 
 func TestEmpty(t *testing.T) {
-	tree := NewTree[int](intHasher)
+	tree := New[int](intHasher)
 	testLookup(t, tree, 0, false, 0)
 }
 
@@ -75,7 +75,7 @@ func mkMemHasher(limit int) Hasher[int] {
 func TestSameKey(t *testing.T) {
 	for _, hasher := range []Hasher[int]{intHasher, badHasher[int]{}} {
 		hit, miss := mkTest[int, string](t)
-		tree0 := NewTree[string](hasher)
+		tree0 := New[string](hasher)
 		tree1 := tree0.Insert(0, "v1")
 		tree2 := tree1.Insert(0, "v2")
 
@@ -96,7 +96,7 @@ func (badHasher[T]) Equal(a, b T) bool { return a == b }
 
 func TestHashCollision(t *testing.T) {
 	hit, miss := mkTest[int, string](t)
-	tree0 := NewTree[string](Hasher[int](badHasher[int]{}))
+	tree0 := New[string](Hasher[int](badHasher[int]{}))
 	tree1 := tree0.Insert(1, "v1")
 	tree2 := tree1.Insert(2, "v2")
 
@@ -112,7 +112,7 @@ func TestHashCollision(t *testing.T) {
 
 func TestDiffKey(t *testing.T) {
 	hit, _ := mkTest[int, string](t)
-	tree := NewTree[string](intHasher).Insert(0, "v1").Insert(1, "v2")
+	tree := New[string](intHasher).Insert(0, "v1").Insert(1, "v2")
 	hit(tree, 0, "v1")
 	hit(tree, 1, "v2")
 
@@ -127,7 +127,7 @@ func TestManyInsert(t *testing.T) {
 	N := 100
 
 	for iter := 0; iter < iterations; iter++ {
-		tree := NewTree[uint32](uint32Hasher)
+		tree := New[uint32](uint32Hasher)
 
 		var keys []uint32
 		for i := 0; i < N; i++ {
@@ -151,7 +151,7 @@ func TestHistory(t *testing.T) {
 	N := 100
 
 	for _, hasher := range []Hasher[int]{intHasher, mkMemHasher(N / 5)} {
-		tree := NewTree[int](hasher)
+		tree := New[int](hasher)
 		history := []Tree[int, int]{tree}
 
 		for i := 0; i < N; i++ {
@@ -185,8 +185,8 @@ func max(x, y int) (int, bool) {
 func TestSimpleMerge(t *testing.T) {
 	hit, _ := mkTest[int, int](t)
 	for _, hasher := range []Hasher[int]{intHasher, Hasher[int](badHasher[int]{}), mkMemHasher(2)} {
-		a := NewTree[int](hasher).Insert(0, 1).Insert(1, 1)
-		b := NewTree[int](hasher).Insert(1, 2).Insert(2, 2)
+		a := New[int](hasher).Insert(0, 1).Insert(1, 1)
+		b := New[int](hasher).Insert(1, 2).Insert(2, 2)
 
 		check := func(tree Tree[int, int]) {
 			hit(tree, 0, 1)
@@ -204,12 +204,12 @@ func TestSimpleMerge(t *testing.T) {
 }
 
 func TestMergeWithEmpty(t *testing.T) {
-	a := NewTree[int](intHasher).Insert(0, 0)
-	a.Merge(NewTree[int](intHasher), max)
+	a := New[int](intHasher).Insert(0, 0)
+	a.Merge(New[int](intHasher), max)
 }
 
 func TestPointerEqualityAfterMerge(t *testing.T) {
-	a, b := NewTree[int](intHasher), NewTree[int](intHasher)
+	a, b := New[int](intHasher), New[int](intHasher)
 	for i := 0; i < 4; i++ {
 		a = a.Insert(i, i)
 		if i < 3 {
@@ -241,7 +241,7 @@ func TestManyMerge(t *testing.T) {
 
 	for iter := 0; iter < iterations; iter++ {
 		for _, hasher := range []Hasher[int]{intHasher, mkMemHasher(N / 5)} {
-			a, b := NewTree[int](hasher), NewTree[int](hasher)
+			a, b := New[int](hasher), New[int](hasher)
 
 			mp := make([]int, 2*N)
 			for i := 0; i < 2*N; i++ {
@@ -264,7 +264,7 @@ func TestManyMerge(t *testing.T) {
 				hit(merged, k, v)
 			}
 
-			reconstructed := NewTree[int](hasher)
+			reconstructed := New[int](hasher)
 			for k, v := range mp {
 				reconstructed = reconstructed.Insert(k, v)
 			}
@@ -283,7 +283,7 @@ func TestRemove(t *testing.T) {
 	N_remove := 20
 
 	for iter := 0; iter < iterations; iter++ {
-		tree := NewTree[uint32](uint32Hasher)
+		tree := New[uint32](uint32Hasher)
 
 		var keys []uint32
 		for i := 0; i < N; i++ {
