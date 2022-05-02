@@ -7,14 +7,19 @@ import (
 // Construct a new persistent key-value map with the specified hasher.
 func New[V, K any](hasher Hasher[K]) Tree[K, V] {
 	// Order of K and V is swapped because K can be inferred from the argument.
+	// TODO: Check if type inference is better in Go 1.19
+	//  https://github.com/golang/go/issues/41176
 	return Tree[K, V]{hasher, nil}
 }
 
+// Tree represents a persistent hash map.
 type Tree[K, V any] struct {
 	hasher Hasher[K]
 	root   node[K, V]
 }
 
+// Lookup returns the value mapped to the provided key in the map.
+// The semantics are equivalent to those of 2-valued lookup in regular Go maps.
 func (tree Tree[K, V]) Lookup(key K) (V, bool) {
 	// Hashing can be expensive, so we hash the key once here and pass it on.
 	return lookup(tree.root, tree.hasher.Hash(key), key, tree.hasher)
@@ -28,7 +33,7 @@ func (tree Tree[K, V]) Insert(key K, value V) Tree[K, V] {
 
 // Inserts the given key-value pair into the map. If a previous mapping
 // (prevValue) exists for the key, the inserted value will be `f(value, prevValue)`.
-func (tree Tree[K, V]) InsertOrMerge(key K, value V, f mergeFunc[V]) Tree[K, V] {
+func (tree Tree[K, V]) InsertOrMerge(key K, value V, f MergeFunc[V]) Tree[K, V] {
 	tree.root, _ = insert(tree.root, tree.hasher.Hash(key), key, value, tree.hasher, f)
 	return tree
 }
@@ -50,18 +55,20 @@ func (tree Tree[K, V]) ForEach(f eachFunc[K, V]) {
 
 // Merges two maps. If both maps contain a value for a key, the resulting map
 // will map the key to the result of `f` on the two values.
-// `f` must be commutative and idempotent!
+//
+// See the documentation for MergeFunc for conditions that `f` must satisfy.
+// No guarantees are made about the order of arguments provided to `f`.
+//
 // This operation is made fast by skipping processing of shared subtrees.
-// Merging a tree with itself after r updates should have complexity
-// equivalent to `O(r * (keysize + f))`.
-func (tree Tree[K, V]) Merge(other Tree[K, V], f mergeFunc[V]) Tree[K, V] {
+// Merging a tree with itself after r updates takes linear time in r.
+func (tree Tree[K, V]) Merge(other Tree[K, V], f MergeFunc[V]) Tree[K, V] {
 	tree.root, _ = merge(tree.root, other.root, tree.hasher, f)
 	return tree
 }
 
 // Returns whether two maps are equal. Values are compared with the provided
 // function. This operation also skips processing of shared subtrees.
-func (tree Tree[K, V]) Equal(other Tree[K, V], f cmpFunc[V]) bool {
+func (tree Tree[K, V]) Equal(other Tree[K, V], f func(V, V) bool) bool {
 	return equal(tree.root, other.root, tree.hasher, f)
 }
 
@@ -83,6 +90,14 @@ func (tree Tree[K, V]) String() string {
 
 	return fmt.Sprintf("tree[%s]", buf)
 }
+
+// MergeFunc describes a binary operator, f, that merges two values.
+// The operator must be commutative and idempotent. I.e.:
+//  f(a, b) = f(b, a)
+//  f(a, a) = a
+// The second return value informs the caller whether a == b.
+// This flag allows some optimizations in the implementation.
+type MergeFunc[V any] func(a, b V) (V, bool)
 
 // End of public interface
 
@@ -197,18 +212,10 @@ func join[K, V any](p0, p1 keyt, t0, t1 node[K, V]) node[K, V] {
 	}
 }
 
-// Merges two values. Must be commutative and idempotent.
-// The second return value informs the caller whether a == b.
-// NOTE: This flag allows us to do some optimizations. Namely we can keep old
-// nodes instead of replacing them with "equal" copies when the flag is true.
-// However, it complicates the implementation a little bit - I'm not sure it's
-// worth it.
-type mergeFunc[V any] func(a, b V) (V, bool)
-
 // If `f` is nil the old value is always replaced with the argument value, otherwise
 // the old value is replaced with `f(value, prevValue)`.
 // If the returned flag is false, the returned node is (reference-)equal to the input node.
-func insert[K, V any](tree node[K, V], hash keyt, key K, value V, hasher Hasher[K], f mergeFunc[V]) (node[K, V], bool) {
+func insert[K, V any](tree node[K, V], hash keyt, key K, value V, hasher Hasher[K], f MergeFunc[V]) (node[K, V], bool) {
 	if tree == nil {
 		return &leaf[K, V]{key: hash, values: []pair[K, V]{{key, value}}}, true
 	}
@@ -309,7 +316,7 @@ func remove[K, V any](tree node[K, V], hash keyt, key K, hasher Hasher[K]) node[
 }
 
 // If the returned flag is true, a and b represent equal trees
-func merge[K, V any](a, b node[K, V], hasher Hasher[K], f mergeFunc[V]) (node[K, V], bool) {
+func merge[K, V any](a, b node[K, V], hasher Hasher[K], f MergeFunc[V]) (node[K, V], bool) {
 	// Cheap pointer-equality
 	if a == b {
 		return a, true
@@ -404,9 +411,7 @@ func merge[K, V any](a, b node[K, V], hasher Hasher[K], f mergeFunc[V]) (node[K,
 	// Note also that `merge(t, s) = t`.
 }
 
-type cmpFunc[V any] func(a, b V) bool
-
-func equal[K, V any](a, b node[K, V], hasher Hasher[K], f cmpFunc[V]) bool {
+func equal[K, V any](a, b node[K, V], hasher Hasher[K], f func(V, V) bool) bool {
 	if a == b {
 		return true
 	} else if a == nil || b == nil {
