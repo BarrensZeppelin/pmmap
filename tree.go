@@ -88,7 +88,7 @@ func (tree Tree[K, V]) String() string {
 		buf = append(buf, fmt.Sprintf("%v ↦ %v", k, v))
 	})
 
-	return fmt.Sprintf("tree[%s]", buf)
+	return fmt.Sprintf("tree%s", buf)
 }
 
 // MergeFunc describes a binary operator, f, that merges two values.

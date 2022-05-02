@@ -1,6 +1,7 @@
 package hashtree
 
 import (
+	"fmt"
 	"math/rand"
 	"testing"
 )
@@ -313,4 +314,27 @@ func TestRemove(t *testing.T) {
 			hit(tree, k, k)
 		}
 	}
+}
+
+func Example() {
+	hasher := Hasher[int](NumericHasher[int]{})
+	tree0 := New[int](hasher)
+	tree1 := tree0.Insert(5, 6)
+	fmt.Println(tree0)
+	fmt.Println(tree1)
+	tree2 := tree0.Insert(5, 10)
+	fmt.Println(tree1.Equal(tree2, hasher.Equal))
+	fmt.Println(tree1.Merge(tree2, func(a, b int) (int, bool) {
+		// Return the max of a and b
+		if a < b {
+			a, b = b, a
+		}
+		return a, a == b
+	}))
+
+	// Output:
+	// tree[]
+	// tree[5 ↦ 6]
+	// false
+	// tree[5 ↦ 10]
 }
