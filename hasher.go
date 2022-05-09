@@ -7,11 +7,7 @@ package hashtree
 // for lookup, insertion and removal.
 type Hasher[K any] interface {
 	Equal(a, b K) bool
-	Hash(K) uint32
-}
-
-func hashUint64(x uint64) uint32 {
-	return uint32(x ^ (x >> 32))
+	Hash(K) uint64
 }
 
 type Numeric interface {
@@ -22,4 +18,5 @@ type Numeric interface {
 type NumericHasher[T Numeric] struct{}
 
 func (NumericHasher[T]) Equal(a, b T) bool { return a == b }
-func (NumericHasher[T]) Hash(a T) uint32   { return hashUint64(uint64(a)) }
+func (NumericHasher[T]) Hash(a T) uint64   { return uint64(a) }
+

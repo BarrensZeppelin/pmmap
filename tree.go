@@ -109,7 +109,7 @@ type node[K, V any] interface {
 	each(eachFunc[K, V])
 }
 
-type keyt = uint32
+type keyt = uint64
 
 type branch[K, V any] struct {
 	prefix keyt // Common prefix of all keys in the left and right subtrees

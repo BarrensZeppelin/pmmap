@@ -54,15 +54,15 @@ func TestEmpty(t *testing.T) {
 func cmpEq[T comparable](a, b T) bool { return a == b }
 
 type memHasher struct {
-	mem   map[int]uint32
+	mem   map[int]keyt
 	limit int
 }
 
-func (m memHasher) Hash(x int) uint32 {
+func (m memHasher) Hash(x int) keyt {
 	if v, ok := m.mem[x]; ok {
 		return v
 	}
-	h := uint32(rand.Intn(m.limit))
+	h := keyt(rand.Intn(m.limit))
 	m.mem[x] = h
 	return h
 }
@@ -70,7 +70,7 @@ func (m memHasher) Equal(a, b int) bool {
 	return a == b
 }
 func mkMemHasher(limit int) Hasher[int] {
-	return memHasher{make(map[int]uint32), limit}
+	return memHasher{make(map[int]keyt), limit}
 }
 
 func TestSameKey(t *testing.T) {
@@ -92,7 +92,7 @@ func TestSameKey(t *testing.T) {
 
 type badHasher[T comparable] struct{}
 
-func (badHasher[T]) Hash(T) uint32     { return 0 }
+func (badHasher[T]) Hash(T) keyt       { return 0 }
 func (badHasher[T]) Equal(a, b T) bool { return a == b }
 
 func TestHashCollision(t *testing.T) {
