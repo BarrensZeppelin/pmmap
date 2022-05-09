@@ -338,3 +338,40 @@ func Example() {
 	// false
 	// tree[5 ↦ 10]
 }
+
+type MutableMap[K, V any] interface {
+	Insert(K, V)
+}
+
+type MapMap[K comparable, V any] map[K]V
+
+func (m MapMap[K, V]) Insert(key K, value V) {
+	m[key] = value
+}
+
+type MutableTree[K, V any] struct {
+	tree Tree[K, V]
+}
+
+func (mt *MutableTree[K, V]) Insert(key K, value V) {
+	mt.tree = mt.tree.Insert(key, value)
+}
+
+func BenchmarkInserts(b *testing.B) {
+	mutableMaps := []struct {
+		name    string
+		factory func() MutableMap[int, int]
+	}{
+		{"map", func() MutableMap[int, int] { return make(MapMap[int, int]) }},
+		{"tree", func() MutableMap[int, int] { return &MutableTree[int, int]{New[int](intHasher)} }},
+	}
+
+	for _, mmap := range mutableMaps {
+		b.Run(mmap.name, func(b *testing.B) {
+			mp := mmap.factory()
+			for i := 0; i < b.N; i++ {
+				mp.Insert(i, i)
+			}
+		})
+	}
+}
