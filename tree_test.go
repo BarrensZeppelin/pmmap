@@ -341,37 +341,68 @@ func Example() {
 
 type MutableMap[K, V any] interface {
 	Insert(K, V)
+	Lookup(K) (V, bool)
 }
 
 type MapMap[K comparable, V any] map[K]V
 
-func (m MapMap[K, V]) Insert(key K, value V) {
-	m[key] = value
+func (m MapMap[K, V]) Insert(key K, value V) { m[key] = value }
+func (m MapMap[K, V]) Lookup(key K) (V, bool) {
+	v, ok := m[key]
+	return v, ok
 }
 
-type MutableTree[K, V any] struct {
-	tree Tree[K, V]
-}
+type MutableTree[K, V any] struct { Tree[K, V] }
 
 func (mt *MutableTree[K, V]) Insert(key K, value V) {
-	mt.tree = mt.tree.Insert(key, value)
+	mt.Tree = mt.Tree.Insert(key, value)
+}
+
+const benchmarkSize = 10000
+
+var mutableMapImpls = []struct {
+	name    string
+	factory func() MutableMap[int, int]
+}{
+	{"map", func() MutableMap[int, int] { return make(MapMap[int, int]) }},
+	{"tree", func() MutableMap[int, int] { return &MutableTree[int, int]{New[int](intHasher)} }},
 }
 
 func BenchmarkInserts(b *testing.B) {
-	mutableMaps := []struct {
-		name    string
-		factory func() MutableMap[int, int]
-	}{
-		{"map", func() MutableMap[int, int] { return make(MapMap[int, int]) }},
-		{"tree", func() MutableMap[int, int] { return &MutableTree[int, int]{New[int](intHasher)} }},
+	for _, mmap := range mutableMapImpls {
+		b.Run(mmap.name, func(b *testing.B) {
+			for bi := 0; bi < b.N; bi++ {
+				mp := mmap.factory()
+				for i := 0; i < benchmarkSize; i++ {
+					mp.Insert(i, i)
+				}
+			}
+		})
+	}
+}
+
+var blackhole interface{}
+
+func BenchmarkLookups(b *testing.B) {
+	var seq [benchmarkSize]int
+	for i := range seq {
+		seq[i] = rand.Int()
 	}
 
-	for _, mmap := range mutableMaps {
+	for _, mmap := range mutableMapImpls {
 		b.Run(mmap.name, func(b *testing.B) {
+			var res int
 			mp := mmap.factory()
-			for i := 0; i < b.N; i++ {
-				mp.Insert(i, i)
+			for i := 0; i < benchmarkSize/2; i++ {
+				mp.Insert(seq[i], i)
 			}
+			b.ResetTimer()
+			for bi := 0; bi < b.N; bi++ {
+				for i := 0; i < benchmarkSize; i++ {
+					res, _ = mp.Lookup(seq[i])
+				}
+			}
+			blackhole = res
 		})
 	}
 }
