@@ -73,41 +73,70 @@ func BenchmarkLookups(b *testing.B) {
 	}
 }
 
-type Set[T any] interface {
-	Contains(T) bool
+type Sets interface {
+	Copy(src, dest int)
 }
 
-type JoinableSet[T any, S Set[T]] interface {
-	Set[T]
-	Join(S)
-}
+type MapSets struct{ maps []map[int]struct{} }
 
-type MapSet[K comparable] map[K]struct{}
-
-func (m MapSet[K]) Contains(key K) bool {
-	_, ok := m[key]
-	return ok
-}
-
-func (m MapSet[K]) Join(o MapSet[K]) {
-	for k, v := range o {
-		m[k] = v
+func (m MapSets) Copy(src, dest int) {
+	a, b := m.maps[src], m.maps[dest]
+	for k, v := range a {
+		b[k] = v
 	}
 }
 
-var _ JoinableSet[int, MapSet[int]] = make(MapSet[int])
+type TreeSets struct{ trees []Tree[int, struct{}] }
 
-type TreeSet[T any] struct { tree Tree[T, struct{}] }
-
-func (t *TreeSet[T]) Contains(key T) bool {
-	_, ok := t.tree.Lookup(key)
-	return ok
-}
-
-func (t *TreeSet[T]) Join(o *TreeSet[T]) {
-	t.tree = t.tree.Merge(o.tree, func(a, b struct{}) (struct{}, bool) {
+func (t TreeSets) Copy(src, dest int) {
+	t.trees[dest] = t.trees[dest].Merge(t.trees[src], func(a, b struct{}) (struct{}, bool) {
 		return a, true
 	})
 }
 
-var _ JoinableSet[int, *TreeSet[int]] = &TreeSet[int]{}
+var setsImpls = []struct {
+	name    string
+	factory func(N int) Sets
+}{
+	{"map", func(N int) Sets {
+		maps := make([]map[int]struct{}, N)
+		for i := range maps {
+			maps[i] = map[int]struct{}{i: {}}
+		}
+		return MapSets{maps}
+	}},
+	{"tree", func(N int) Sets {
+		trees := make([]Tree[int, struct{}], N)
+		for i := range trees {
+			trees[i] = New[struct{}](intHasher).Insert(i, struct{}{})
+		}
+		return TreeSets{trees}
+	}},
+}
+
+const dagSize = 1000
+
+func BenchmarkDAGReachability(b *testing.B) {
+	rnd := rand.New(rand.NewSource(0))
+
+	edges := [dagSize][]int{}
+	for i := 0; i < dagSize * 20; i++ {
+		a := rnd.Intn(dagSize - 1)
+		b := a + 1 + rnd.Intn(dagSize - a - 1)
+		edges[b] = append(edges[b], a)
+	}
+
+	for _, simpl := range setsImpls {
+		b.Run(simpl.name, func(b *testing.B) {
+			sets := simpl.factory(dagSize)
+			b.ResetTimer()
+			for bi := 0; bi < b.N; bi++ {
+				for i := 0; i < dagSize; i++ {
+					for _, j := range edges[i] {
+						sets.Copy(j, i)
+					}
+				}
+			}
+		})
+	}
+}
