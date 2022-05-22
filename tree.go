@@ -113,8 +113,8 @@ type keyt = uint64
 
 type branch[K, V any] struct {
 	prefix keyt // Common prefix of all keys in the left and right subtrees
-	// A number with exactly one positive bit. The position of the bit
-	// determines where the prefixes of the left and right subtrees diverge.
+	// A number with exactly one set bit. The position of the bit determines
+	// where the prefixes of the left and right subtrees diverge.
 	branchBit   keyt
 	left, right node[K, V]
 }

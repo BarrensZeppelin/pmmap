@@ -317,7 +317,7 @@ func TestRemove(t *testing.T) {
 }
 
 func Example() {
-	hasher := Hasher[int](numericHasher[int]{})
+	hasher := NumericHasher[int]()
 	tree0 := New[int](hasher)
 	tree1 := tree0.Insert(5, 6)
 	fmt.Println(tree0)
