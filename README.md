@@ -1,5 +1,7 @@
 # Persistent Mergeable Hash Map (pmmap)
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/BarrensZeppelin/pmmap@v0.1.0.svg)](https://pkg.go.dev/github.com/BarrensZeppelin/pmmap@v0.1.0)
+
 This package provides a Go implementation of a persistent key-value hash map with an efficient _merge_ operation.
 
 The backing data structure is a [patricia trie](https://en.wikipedia.org/wiki/Radix_tree#PATRICIA).
