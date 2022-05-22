@@ -36,15 +36,35 @@ var mutableMapImpls = []struct {
 }
 
 func BenchmarkInserts(b *testing.B) {
+	sequential := make([]int, benchmarkSize)
+	for i := range sequential {
+		sequential[i] = i
+	}
+
+	random := make([]int, benchmarkSize)
+	for i := range random {
+		random[i] = rand.Int()
+	}
+
+	keyDistributions := [...]struct {
+		name string
+		keys []int
+	}{
+		{"sequential", sequential},
+		{"random", random},
+	}
+
 	for _, mmap := range mutableMapImpls {
-		b.Run(mmap.name, func(b *testing.B) {
-			for bi := 0; bi < b.N; bi++ {
-				mp := mmap.factory()
-				for i := 0; i < benchmarkSize; i++ {
-					mp.Insert(i, i)
+		for _, dist := range keyDistributions {
+			b.Run(fmt.Sprintf("%s-%s", mmap.name, dist.name), func(b *testing.B) {
+				for bi := 0; bi < b.N; bi++ {
+					mp := mmap.factory()
+					for _, i := range dist.keys {
+						mp.Insert(i, i)
+					}
 				}
-			}
-		})
+			})
+		}
 	}
 }
 
@@ -61,7 +81,7 @@ func BenchmarkLookups(b *testing.B) {
 			b.Run(fmt.Sprintf("%s-miss-%d", mmap.name, missProbability), func(b *testing.B) {
 				var res int
 				mp := mmap.factory()
-				for i := 0; i < benchmarkSize * (100 - missProbability) / 100; i++ {
+				for i := 0; i < benchmarkSize*(100-missProbability)/100; i++ {
 					mp.Insert(seq[i], i)
 				}
 				b.ResetTimer()
