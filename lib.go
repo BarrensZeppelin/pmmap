@@ -1,4 +1,4 @@
-package hashtree
+package pmmap
 
 func zeroBit(key, bit keyt) bool {
 	return key & bit == 0
