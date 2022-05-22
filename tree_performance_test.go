@@ -1,6 +1,7 @@
 package hashtree
 
 import (
+	"fmt"
 	"math/rand"
 	"testing"
 )
@@ -56,20 +57,22 @@ func BenchmarkLookups(b *testing.B) {
 	}
 
 	for _, mmap := range mutableMapImpls {
-		b.Run(mmap.name, func(b *testing.B) {
-			var res int
-			mp := mmap.factory()
-			for i := 0; i < benchmarkSize/2; i++ {
-				mp.Insert(seq[i], i)
-			}
-			b.ResetTimer()
-			for bi := 0; bi < b.N; bi++ {
-				for i := 0; i < benchmarkSize; i++ {
-					res, _ = mp.Lookup(seq[i])
+		for _, missProbability := range [...]int{50, 10, 1} {
+			b.Run(fmt.Sprintf("%s-miss-%d", mmap.name, missProbability), func(b *testing.B) {
+				var res int
+				mp := mmap.factory()
+				for i := 0; i < benchmarkSize * (100 - missProbability) / 100; i++ {
+					mp.Insert(seq[i], i)
 				}
-			}
-			blackhole = res
-		})
+				b.ResetTimer()
+				for bi := 0; bi < b.N; bi++ {
+					for i := 0; i < benchmarkSize; i++ {
+						res, _ = mp.Lookup(seq[i])
+					}
+				}
+				blackhole = res
+			})
+		}
 	}
 }
 
@@ -120,9 +123,9 @@ func BenchmarkDAGReachability(b *testing.B) {
 	rnd := rand.New(rand.NewSource(0))
 
 	edges := [dagSize][]int{}
-	for i := 0; i < dagSize * 20; i++ {
+	for i := 0; i < dagSize*20; i++ {
 		a := rnd.Intn(dagSize - 1)
-		b := a + 1 + rnd.Intn(dagSize - a - 1)
+		b := a + 1 + rnd.Intn(dagSize-a-1)
 		edges[b] = append(edges[b], a)
 	}
 
