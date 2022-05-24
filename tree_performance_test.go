@@ -151,9 +151,8 @@ func BenchmarkDAGReachability(b *testing.B) {
 
 	for _, simpl := range setsImpls {
 		b.Run(simpl.name, func(b *testing.B) {
-			sets := simpl.factory(dagSize)
-			b.ResetTimer()
 			for bi := 0; bi < b.N; bi++ {
+				sets := simpl.factory(dagSize)
 				for i := 0; i < dagSize; i++ {
 					for _, j := range edges[i] {
 						sets.Copy(j, i)
