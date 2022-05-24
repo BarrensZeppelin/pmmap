@@ -4,7 +4,9 @@
 
 This package provides a Go implementation of a persistent key-value hash map with an efficient _merge_ operation.
 
-The backing data structure is a [patricia trie](https://en.wikipedia.org/wiki/Radix_tree#PATRICIA).
+The maps are immutable, so modifying operations (inserts and removals) return a copy of the map with the operation applied.
+
+The backing data structure is a [patricia trie](https://en.wikipedia.org/wiki/Radix_tree#PATRICIA) on key hashes.
 
 ## Usage
 
@@ -75,4 +77,4 @@ This allows the implementation to re-use more substructures.
 The project includes some performance benchmarks that compare the speed of insert and lookup operations to that of Go's builtin `map` implementation.
 Inserts are roughly 8-10 times slower than the builtin map and lookups are roughly 6 times slower.
 This map implementation is not a good general-purpose replacement for hash maps.
-It is most useful when the merge operation is used to speed up merges of large maps.
+It is most useful when the merge operation is used to speed up merges of large maps and when large maps must be copied (which is essentially free due to immutability).

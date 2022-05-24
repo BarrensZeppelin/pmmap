@@ -13,6 +13,11 @@ func New[V, K any](hasher Hasher[K]) Tree[K, V] {
 }
 
 // Tree represents a persistent hash map.
+//
+// Hash collisions are resolved by putting key-value pairs into buckets that
+// are scanned at lookups.
+//
+// Hash values of keys must not change while they are stored in the map.
 type Tree[K, V any] struct {
 	hasher Hasher[K]
 	root   node[K, V]
