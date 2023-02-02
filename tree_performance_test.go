@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"testing"
+	"unsafe"
 )
 
 type MutableMap[K, V any] interface {
@@ -93,6 +94,33 @@ func BenchmarkLookups(b *testing.B) {
 				blackhole = res
 			})
 		}
+	}
+
+	{
+		var key keyt
+		chain := New[int](NumericHasher[keyt]())
+		for i := 0; i < int(unsafe.Sizeof(key)); i++ {
+			chain = chain.Insert(1<<i, 0)
+		}
+		const subSize = 1<<6
+		for i := keyt(0); i < subSize; i++ {
+			if chain.hasher.Hash(i) != i {
+				b.Fatalf("Expected hash function to be the identity function!")
+			}
+			chain = chain.Insert(i, 0)
+		}
+
+		b.Run("tree-chain", func(b *testing.B) {
+			for bi := 0; bi < b.N; bi++ {
+				var res int
+				for i := 0; i < benchmarkSize/subSize; i++ {
+					for j := keyt(0); j < subSize; j++ {
+						res, _ = chain.Lookup(j)
+					}
+				}
+				blackhole = res
+			}
+		})
 	}
 }
 

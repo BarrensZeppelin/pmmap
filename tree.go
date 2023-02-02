@@ -35,9 +35,37 @@ func (tree Tree[K, V]) hash(key K) keyt {
 
 // Lookup returns the value mapped to the provided key in the map.
 // The semantics are equivalent to those of 2-valued lookup in regular Go maps.
-func (tree Tree[K, V]) Lookup(key K) (V, bool) {
-	// Hashing can be expensive, so we hash the key once here and pass it on.
-	return lookup(tree.root, tree.hash(key), key, tree.hasher)
+func (tree Tree[K, V]) Lookup(key K) (ret V, found bool) {
+	node := tree.root
+	if node == nil {
+		return
+	}
+
+	for hash := tree.hash(key); ; {
+		switch n := node.(type) {
+		case *leaf[K, V]:
+			if n.key == hash {
+				for _, pr := range n.values {
+					if tree.hasher.Equal(key, pr.key) {
+						return pr.value, true
+					}
+				}
+			}
+
+			return
+
+		case *branch[K, V]:
+			if !n.match(hash) {
+				return
+			} else if zeroBit(hash, n.branchBit) {
+				node = n.left
+			} else {
+				node = n.right
+			}
+		default:
+			panic("Impossible: unknown tree root type.")
+		}
+	}
 }
 
 // Insert the given key-value pair into the map.
@@ -190,39 +218,6 @@ func br[K, V any](prefix, branchBit keyt, left, right node[K, V]) node[K, V] {
 	}
 
 	return &branch[K, V]{prefix, branchBit, left, right}
-}
-
-// Recursive lookup on tree.
-func lookup[K, V any](tree node[K, V], hash keyt, key K, hasher Hasher[K]) (ret V, found bool) {
-	if tree == nil {
-		return
-	}
-
-	switch tree := tree.(type) {
-	case *leaf[K, V]:
-		if tree.key == hash {
-			for _, pr := range tree.values {
-				if hasher.Equal(key, pr.key) {
-					return pr.value, true
-				}
-			}
-		}
-
-		return
-
-	case *branch[K, V]:
-		rec := tree.right
-		if !tree.match(hash) {
-			return
-		} else if zeroBit(hash, tree.branchBit) {
-			rec = tree.left
-		}
-
-		return lookup(rec, hash, key, hasher)
-
-	default:
-		panic("Impossible: unknown tree root type.")
-	}
 }
 
 // join merges two trees t0 and t1 which have prefixes p0 and p1 respectively.
