@@ -2,6 +2,7 @@ package pmmap
 
 import (
 	"fmt"
+	"math/bits"
 )
 
 // Construct a new persistent key-value map with the specified hasher.
@@ -23,14 +24,23 @@ type Tree[K, V any] struct {
 	root   node[K, V]
 }
 
+// hash computes the big-endian 64-bit hash key.
+func (tree Tree[K, V]) hash(key K) keyt {
+	// The paper claims that big-endian patricia trees work better than
+	// little-endian trees in practice. Instead of modifying the functions
+	// operating on the tree, we can get the benefits of a big-endian tree by
+	// reversing the bit representation of hashes up-front.
+	return bits.Reverse64(tree.hasher.Hash(key))
+}
+
 // Lookup returns the value mapped to the provided key in the map.
 // The semantics are equivalent to those of 2-valued lookup in regular Go maps.
 func (tree Tree[K, V]) Lookup(key K) (V, bool) {
 	// Hashing can be expensive, so we hash the key once here and pass it on.
-	return lookup(tree.root, tree.hasher.Hash(key), key, tree.hasher)
+	return lookup(tree.root, tree.hash(key), key, tree.hasher)
 }
 
-// Inserts the given key-value pair into the map.
+// Insert the given key-value pair into the map.
 // Replaces previous value with the same key if it exists.
 func (tree Tree[K, V]) Insert(key K, value V) Tree[K, V] {
 	return tree.InsertOrMerge(key, value, nil)
@@ -39,15 +49,13 @@ func (tree Tree[K, V]) Insert(key K, value V) Tree[K, V] {
 // Inserts the given key-value pair into the map. If a previous mapping
 // (prevValue) exists for the key, the inserted value will be `f(value, prevValue)`.
 func (tree Tree[K, V]) InsertOrMerge(key K, value V, f MergeFunc[V]) Tree[K, V] {
-	tree.root, _ = insert(tree.root, tree.hasher.Hash(key), key, value, tree.hasher, f)
+	tree.root, _ = insert(tree.root, tree.hash(key), key, value, tree.hasher, f)
 	return tree
 }
 
 // Remove a mapping for the given key if it exists.
 func (tree Tree[K, V]) Remove(key K) Tree[K, V] {
-	// TODO: We can check if the key exists before erasing to prevent
-	// replacing parts of subtrees unnecessarily (to preserve pointer equality)
-	tree.root = remove(tree.root, tree.hasher.Hash(key), key, tree.hasher)
+	tree.root = remove(tree.root, tree.hash(key), key, tree.hasher)
 	return tree
 }
 
@@ -71,16 +79,16 @@ func (tree Tree[K, V]) Merge(other Tree[K, V], f MergeFunc[V]) Tree[K, V] {
 	return tree
 }
 
-// Returns whether two maps are equal. Values are compared with the provided
+// Equal checks whether two maps are equal. Values are compared with the provided
 // function. This operation also skips processing of shared subtrees.
 func (tree Tree[K, V]) Equal(other Tree[K, V], f func(V, V) bool) bool {
 	return equal(tree.root, other.root, tree.hasher, f)
 }
 
-// Returns the number of key-value pairs in the map.
+// Size returns the number of key-value pairs in the map.
 // NOTE: Runs in linear time in the size of the map.
 func (tree Tree[K, V]) Size() (res int) {
-	tree.ForEach(func(_ K, _ V) {
+	tree.ForEach(func(K, V) {
 		res++
 	})
 	return
@@ -98,8 +106,10 @@ func (tree Tree[K, V]) String() string {
 
 // MergeFunc describes a binary operator, f, that merges two values.
 // The operator must be commutative and idempotent. I.e.:
-//  f(a, b) = f(b, a)
-//  f(a, a) = a
+//
+//	f(a, b) = f(b, a)
+//	f(a, a) = a
+//
 // The second return value informs the caller whether a == b.
 // This flag allows some optimizations in the implementation.
 type MergeFunc[V any] func(a, b V) (V, bool)
@@ -107,47 +117,56 @@ type MergeFunc[V any] func(a, b V) (V, bool)
 // End of public interface
 
 // The patricia tree implementation is based on:
-// http://ittc.ku.edu/~andygill/papers/IntMap98.pdf
+// https://web.archive.org/web/20220515235749/http://ittc.ku.edu/~andygill/papers/IntMap98.pdf
 
-type eachFunc[K, V any] func(key K, value V)
-type node[K, V any] interface {
-	each(eachFunc[K, V])
-}
+type (
+	// eachFunc is the type of procedures defined over elements of the tree.
+	eachFunc[K, V any] func(key K, value V)
+	// node is an interface defined over nodes in the Patricia tree.
+	node[K, V any] interface {
+		each(eachFunc[K, V])
+	}
 
-type keyt = uint64
+	// keyt is an alias over the key type of a Patricia tree.
+	keyt = uint64
 
-type branch[K, V any] struct {
-	prefix keyt // Common prefix of all keys in the left and right subtrees
-	// A number with exactly one set bit. The position of the bit determines
-	// where the prefixes of the left and right subtrees diverge.
-	branchBit   keyt
-	left, right node[K, V]
-}
+	// branch encodes a branching node in the Patricia tree.
+	branch[K, V any] struct {
+		prefix keyt // Common prefix of all keys in the left and right subtrees
+		// A number with exactly one positive bit. The position of the bit
+		// determines where the prefixes of the left and right subtrees diverge.
+		branchBit   keyt
+		left, right node[K, V]
+	}
+	// pair encodes a key-value pair in leaves.
+	pair[K, V any] struct {
+		key   K
+		value V
+	}
+	// leaf encodes a terminal node in the Patricia tree.
+	leaf[K, V any] struct {
+		// The (shared) hash value of all keys in the leaf.
+		key keyt
+		// List of values to handle hash collisions.
+		// TODO: Since collisions should be rare it might be worth
+		// it to have a fast implementation when no collisions occur.
+		values []pair[K, V]
+	}
+)
 
+// each recursively applies a procedure over each element of the tree.
 func (b *branch[K, V]) each(f eachFunc[K, V]) {
 	b.left.each(f)
 	b.right.each(f)
 }
 
-// Returns whether the key matches the prefix up until the branching bit.
+// match returns whether the key matches the prefix up until the branching bit.
 // Intuitively: does the key belong in the branch's subtree?
 func (b *branch[K, V]) match(key keyt) bool {
 	return (key & (b.branchBit - 1)) == b.prefix
 }
 
-type pair[K, V any] struct {
-	key   K
-	value V
-}
-type leaf[K, V any] struct {
-	// The (shared) hash value of all keys in the leaf.
-	key keyt
-	// List of values to handle hash collisions.
-	// TODO: Since collisions should be rare it might be worth
-	// it to have a fast implementation when no collisions occur.
-	values []pair[K, V]
-}
-
+// copy constructs a new leaf that inherits the values of this leaf.
 func (l *leaf[K, V]) copy() *leaf[K, V] {
 	return &leaf[K, V]{
 		l.key,
@@ -155,6 +174,7 @@ func (l *leaf[K, V]) copy() *leaf[K, V] {
 	}
 }
 
+// each applies a procedure to all values in the leaf.
 func (l *leaf[K, V]) each(f eachFunc[K, V]) {
 	for _, pr := range l.values {
 		f(pr.key, pr.value)
@@ -201,11 +221,11 @@ func lookup[K, V any](tree node[K, V], hash keyt, key K, hasher Hasher[K]) (ret 
 		return lookup(rec, hash, key, hasher)
 
 	default:
-		panic("???")
+		panic("Impossible: unknown tree root type.")
 	}
 }
 
-// Joins two trees t0 and t1 which have prefixes p0 and p1 respectively.
+// join merges two trees t0 and t1 which have prefixes p0 and p1 respectively.
 // The prefixes must not be equal!
 func join[K, V any](p0, p1 keyt, t0, t1 node[K, V]) node[K, V] {
 	bbit := branchingBit(p0, p1)
@@ -274,13 +294,15 @@ func insert[K, V any](tree node[K, V], hash keyt, key K, value V, hasher Hasher[
 		prefix = tree.prefix
 
 	default:
-		panic("???")
+		panic("Impossible: unknown tree root type.")
 	}
 
 	newLeaf, _ := insert(nil, hash, key, value, nil, nil)
 	return join(hash, prefix, newLeaf, tree), true
 }
 
+// remove returns a tree with the key-value pair matching the provided key if it exists.
+// If such a pair does not exist the input tree is returned.
 func remove[K, V any](tree node[K, V], hash keyt, key K, hasher Hasher[K]) node[K, V] {
 	if tree == nil {
 		return tree
@@ -289,38 +311,45 @@ func remove[K, V any](tree node[K, V], hash keyt, key K, hasher Hasher[K]) node[
 	switch tree := tree.(type) {
 	case *leaf[K, V]:
 		if tree.key == hash {
-			newLeaf := &leaf[K, V]{tree.key, nil}
-			// Copy all pairs that do not match the key
-			for _, pr := range tree.values {
-				if !hasher.Equal(key, pr.key) {
-					newLeaf.values = append(newLeaf.values, pr)
+			for i, pr := range tree.values {
+				if hasher.Equal(key, pr.key) {
+					if len(tree.values) == 1 { // Common case
+						return nil
+					}
+
+					return &leaf[K, V]{
+						tree.key,
+						// Remove the i'th entry
+						append(tree.values[:i:i], tree.values[i+1:]...),
+					}
 				}
 			}
-
-			if len(newLeaf.values) == 0 {
-				return nil
-			}
-
-			return newLeaf
 		}
 	case *branch[K, V]:
 		if tree.match(hash) {
 			left, right := tree.left, tree.right
 			if zeroBit(hash, tree.branchBit) {
 				left = remove(left, hash, key, hasher)
+				if left == tree.left {
+					return tree
+				}
 			} else {
 				right = remove(right, hash, key, hasher)
+				if right == tree.right {
+					return tree
+				}
 			}
+
 			return br(tree.prefix, tree.branchBit, left, right)
 		}
 	default:
-		panic("???")
+		panic("Impossible: unknown tree root type.")
 	}
 
 	return tree
 }
 
-// If the returned flag is true, a and b represent equal trees
+// merge two nodes. If the returned flag is true, a and b represent equal trees.
 func merge[K, V any](a, b node[K, V], hasher Hasher[K], f MergeFunc[V]) (node[K, V], bool) {
 	// Cheap pointer-equality
 	if a == b {
@@ -365,9 +394,9 @@ func merge[K, V any](a, b node[K, V], hasher Hasher[K], f MergeFunc[V]) (node[K,
 		r, req := merge(s.right, t.right, hasher, f)
 		if leq && req {
 			return s, true
-		} else if l == s.left && r == s.right {
+		} else if (leq || l == s.left) && (req || r == s.right) {
 			return s, false
-		} else if l == t.left && r == t.right {
+		} else if (leq || l == t.left) && (req || r == t.right) {
 			return t, false
 		}
 
@@ -401,19 +430,6 @@ func merge[K, V any](a, b node[K, V], hasher Hasher[K], f MergeFunc[V]) (node[K,
 	// performance critical, and since the performance does not rely only on
 	// the implementation within this function. Using shared subtrees speeds
 	// up future merge/equal operations on the result, which is important.
-	// The implementation does not (yet) produce a result that shares maximally
-	// with one of the input trees. Consider `merge(s, t) = t'`:
-	//         s         t          t'
-	//        / \      /  \       /  \
-	//       0  a     c    b     c    a
-	//         / \   / \  / \   / \  / \
-	//        1  3  0  2 1  3  0  2 1  3
-	// The merge of the leaf `0` and `c` returns `c` because it is a superset of
-	// the leaf. However, the merge of `a` and `b` returns `a` because we prefer
-	// the left subtree over the right (both `a` and `b` are valid return values
-	// as the subtrees are equal). Since `t` is not the branch `(c, a)`, we
-	// return a new branch `t'` when we could have just returned `t`.
-	// Note also that `merge(t, s) = t`.
 }
 
 func equal[K, V any](a, b node[K, V], hasher Hasher[K], f func(V, V) bool) bool {
@@ -458,6 +474,6 @@ func equal[K, V any](a, b node[K, V], hasher Hasher[K], f func(V, V) bool) bool 
 			equal(a.left, b.left, hasher, f) && equal(a.right, b.right, hasher, f)
 
 	default:
-		panic("???")
+		panic("Impossible: unknown tree root type.")
 	}
 }
