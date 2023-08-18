@@ -1,6 +1,6 @@
 # Persistent Mergeable Hash Map (pmmap)
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/BarrensZeppelin/pmmap@v0.1.0.svg)](https://pkg.go.dev/github.com/BarrensZeppelin/pmmap@v0.1.0)
+[![Go Reference](https://pkg.go.dev/badge/github.com/BarrensZeppelin/pmmap.svg)](https://pkg.go.dev/github.com/BarrensZeppelin/pmmap)
 
 This package provides a Go implementation of a persistent key-value hash map with an efficient _merge_ operation.
 
