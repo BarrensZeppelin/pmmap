@@ -1,3 +1,12 @@
+// Package pmmap provides a Go implementation of a persistent key-value hash
+// map with an efficient merge operation.
+//
+// The maps are immutable, so modifying operations (inserts and removals)
+// return a copy of the map with the operation applied.
+//
+// The backing data structure is a [patricia trie] on key hashes.
+//
+// [patricia trie]: https://en.wikipedia.org/wiki/Radix_tree#PATRICIA
 package pmmap
 
 import (
