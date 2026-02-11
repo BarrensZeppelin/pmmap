@@ -414,6 +414,57 @@ func TestIter(t *testing.T) {
 	})
 }
 
+func TestPointerHasher(t *testing.T) {
+	h := PointerHasher[int]{}
+
+	t.Run("basic", func(t *testing.T) {
+		a, b, c := new(int), new(int), new(int)
+		*a, *b, *c = 1, 1, 3
+
+		tree := New[string](h).
+			Insert(a, "a").
+			Insert(b, "b").
+			Insert(c, "c")
+
+		hit, miss := mkTest[*int, string](t)
+		hit(tree, a, "a")
+		hit(tree, b, "b")
+		hit(tree, c, "c")
+
+		// a and b point to equal values but are different pointers — distinct keys.
+		if h.Hash(a) == h.Hash(b) {
+			t.Fatal("different pointers should have different hashes")
+		}
+
+		// Remove a; b and c remain.
+		tree = tree.Remove(a)
+		miss(tree, a)
+		hit(tree, b, "b")
+		hit(tree, c, "c")
+	})
+
+	t.Run("nil", func(t *testing.T) {
+		tree := New[string](h).Insert(nil, "nil-val")
+		hit, miss := mkTest[*int, string](t)
+		hit(tree, nil, "nil-val")
+
+		tree = tree.Remove(nil)
+		miss(tree, nil)
+	})
+
+	t.Run("reinsert", func(t *testing.T) {
+		p := new(int)
+		*p = 1
+		hit, _ := mkTest[*int, string](t)
+
+		tree := New[string](h).Insert(p, "first")
+		hit(tree, p, "first")
+
+		tree = tree.Insert(p, "second")
+		hit(tree, p, "second")
+	})
+}
+
 func Example() {
 	hasher := NumericHasher[int]{}
 	tree0 := New[int](hasher)

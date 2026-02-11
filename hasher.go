@@ -1,6 +1,9 @@
 package pmmap
 
-import "math/bits"
+import (
+	"math/bits"
+	"unsafe"
+)
 
 // The Hasher type provides a way to hash values as well as compare them for
 // equality.
@@ -33,3 +36,10 @@ func (StringHasher[T]) Hash(a T) (res uint64) {
 	}
 	return res
 }
+
+// PointerHasher hashes pointers by their memory address.
+// Go's GC is non-moving, so addresses are stable for the lifetime of an object.
+type PointerHasher[T any] struct{}
+
+func (PointerHasher[T]) Equal(a, b *T) bool { return a == b }
+func (PointerHasher[T]) Hash(p *T) uint64   { return uint64(uintptr(unsafe.Pointer(p))) }
