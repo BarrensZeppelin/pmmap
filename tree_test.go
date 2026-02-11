@@ -316,6 +316,104 @@ func TestRemove(t *testing.T) {
 	}
 }
 
+func TestIter(t *testing.T) {
+	const N = 50
+	tree := New[int](intHasher)
+	for i := range N {
+		tree = tree.Insert(i, i*10)
+	}
+
+	t.Run("All", func(t *testing.T) {
+		count := 0
+		for k, v := range tree.All() {
+			got, found := tree.Lookup(k)
+			if !found {
+				t.Fatalf("All yielded key %v not found in tree", k)
+			}
+			if got != v {
+				t.Fatalf("All yielded (%v, %v) but Lookup returned %v", k, v, got)
+			}
+			count++
+		}
+		if count != N {
+			t.Fatalf("All yielded %d pairs, expected %d", count, N)
+		}
+	})
+
+	t.Run("Keys", func(t *testing.T) {
+		seen := map[int]bool{}
+		for k := range tree.Keys() {
+			seen[k] = true
+		}
+		if len(seen) != N {
+			t.Fatalf("Keys yielded %d keys, expected %d", len(seen), N)
+		}
+		for i := range N {
+			if !seen[i] {
+				t.Fatalf("Keys missing key %d", i)
+			}
+		}
+	})
+
+	t.Run("Values", func(t *testing.T) {
+		var vals []int
+		for v := range tree.Values() {
+			vals = append(vals, v)
+		}
+		if len(vals) != N {
+			t.Fatalf("Values yielded %d values, expected %d", len(vals), N)
+		}
+	})
+
+	t.Run("EarlyTermination", func(t *testing.T) {
+		count := 0
+		for range tree.All() {
+			count++
+			if count == 3 {
+				break
+			}
+		}
+		if count != 3 {
+			t.Fatalf("expected 3 iterations, got %d", count)
+		}
+
+		count = 0
+		for range tree.Keys() {
+			count++
+			if count == 5 {
+				break
+			}
+		}
+		if count != 5 {
+			t.Fatalf("expected 5 iterations, got %d", count)
+		}
+
+		count = 0
+		for range tree.Values() {
+			count++
+			if count == 7 {
+				break
+			}
+		}
+		if count != 7 {
+			t.Fatalf("expected 7 iterations, got %d", count)
+		}
+	})
+
+	t.Run("Empty", func(t *testing.T) {
+		empty := New[int](intHasher)
+		for range empty.All() {
+			t.Fatal("All should not yield on empty tree")
+		}
+		for range empty.Keys() {
+			t.Fatal("Keys should not yield on empty tree")
+		}
+		for range empty.Values() {
+			t.Fatal("Values should not yield on empty tree")
+		}
+	})
+}
+
 func Example() {
 	hasher := NumericHasher[int]{}
 	tree0 := New[int](hasher)

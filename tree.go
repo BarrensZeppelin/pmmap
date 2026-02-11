@@ -11,6 +11,7 @@ package pmmap
 
 import (
 	"fmt"
+	"iter"
 	"math/bits"
 )
 
@@ -94,10 +95,41 @@ func (tree Tree[K, V]) Remove(key K) Tree[K, V] {
 	return tree
 }
 
+// All returns an iterator over all key-value pairs in the map.
+func (tree Tree[K, V]) All() iter.Seq2[K, V] {
+	return func(yield func(K, V) bool) {
+		if tree.root != nil {
+			tree.root.iter(yield)
+		}
+	}
+}
+
+// Keys returns an iterator over all keys in the map.
+func (tree Tree[K, V]) Keys() iter.Seq[K] {
+	return func(yield func(K) bool) {
+		for k, _ := range tree.All() {
+			if !yield(k) {
+				return
+			}
+		}
+	}
+}
+
+// Values returns an iterator over all values in the map.
+func (tree Tree[K, V]) Values() iter.Seq[V] {
+	return func(yield func(V) bool) {
+		for _, v := range tree.All() {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+}
+
 // Call the given function once for each key-value pair in the map.
-func (tree Tree[K, V]) ForEach(f eachFunc[K, V]) {
-	if tree.root != nil {
-		tree.root.each(f)
+func (tree Tree[K, V]) ForEach(f func(key K, value V)) {
+	for k, v := range tree.All() {
+		f(k, v)
 	}
 }
 
@@ -123,9 +155,9 @@ func (tree Tree[K, V]) Equal(other Tree[K, V], f func(V, V) bool) bool {
 // Size returns the number of key-value pairs in the map.
 // NOTE: Runs in linear time in the size of the map.
 func (tree Tree[K, V]) Size() (res int) {
-	tree.ForEach(func(K, V) {
+	for range tree.All() {
 		res++
-	})
+	}
 	return
 }
 
@@ -155,11 +187,9 @@ type MergeFunc[V any] func(a, b V) (V, bool)
 // https://web.archive.org/web/20220515235749/http://ittc.ku.edu/~andygill/papers/IntMap98.pdf
 
 type (
-	// eachFunc is the type of procedures defined over elements of the tree.
-	eachFunc[K, V any] func(key K, value V)
 	// node is an interface defined over nodes in the Patricia tree.
 	node[K, V any] interface {
-		each(eachFunc[K, V])
+		iter(yield func(K, V) bool) bool
 	}
 
 	// keyt is an alias over the key type of a Patricia tree.
@@ -189,10 +219,9 @@ type (
 	}
 )
 
-// each recursively applies a procedure over each element of the tree.
-func (b *branch[K, V]) each(f eachFunc[K, V]) {
-	b.left.each(f)
-	b.right.each(f)
+// iter yields all key-value pairs in the subtree, returning false if iteration was stopped early.
+func (b *branch[K, V]) iter(yield func(K, V) bool) bool {
+	return b.left.iter(yield) && b.right.iter(yield)
 }
 
 // match returns whether the key matches the prefix up until the branching bit.
@@ -209,11 +238,14 @@ func (l *leaf[K, V]) copy() *leaf[K, V] {
 	}
 }
 
-// each applies a procedure to all values in the leaf.
-func (l *leaf[K, V]) each(f eachFunc[K, V]) {
+// iter yields all key-value pairs in the leaf, returning false if iteration was stopped early.
+func (l *leaf[K, V]) iter(yield func(K, V) bool) bool {
 	for _, pr := range l.values {
-		f(pr.key, pr.value)
+		if !yield(pr.key, pr.value) {
+			return false
+		}
 	}
+	return true
 }
 
 // Smart branch constructor
