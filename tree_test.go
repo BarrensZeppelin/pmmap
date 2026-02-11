@@ -127,11 +127,11 @@ func TestManyInsert(t *testing.T) {
 	iterations := 100
 	N := 100
 
-	for iter := 0; iter < iterations; iter++ {
+	for range iterations {
 		tree := New[uint32](uint32Hasher)
 
 		var keys []uint32
-		for i := 0; i < N; i++ {
+		for range N {
 			k := rand.Uint32()
 			keys = append(keys, k)
 			tree = tree.Insert(k, k)
@@ -155,13 +155,13 @@ func TestHistory(t *testing.T) {
 		tree := New[int](hasher)
 		history := []Tree[int, int]{tree}
 
-		for i := 0; i < N; i++ {
+		for i := range N {
 			tree = tree.Insert(i, i)
 			history = append(history, tree)
 		}
 
 		for vidx, tree := range history {
-			for i := 0; i < N; i++ {
+			for i := range N {
 				if vidx <= i {
 					miss(tree, i)
 				} else {
@@ -211,7 +211,7 @@ func TestMergeWithEmpty(t *testing.T) {
 
 func TestPointerEqualityAfterMerge(t *testing.T) {
 	a, b := New[int](intHasher), New[int](intHasher)
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		a = a.Insert(i, i)
 		if i < 3 {
 			b = b.Insert(i, i)
@@ -240,7 +240,7 @@ func TestManyMerge(t *testing.T) {
 	iterations := 100
 	N := 100
 
-	for iter := 0; iter < iterations; iter++ {
+	for range iterations {
 		for _, hasher := range []Hasher[int]{intHasher, mkMemHasher(N / 5)} {
 			a, b := New[int](hasher), New[int](hasher)
 
@@ -283,11 +283,11 @@ func TestRemove(t *testing.T) {
 	N := 100
 	N_remove := 20
 
-	for iter := 0; iter < iterations; iter++ {
+	for range iterations {
 		tree := New[uint32](uint32Hasher)
 
 		var keys []uint32
-		for i := 0; i < N; i++ {
+		for range N {
 			k := rand.Uint32()
 			keys = append(keys, k)
 			tree = tree.Insert(k, k)

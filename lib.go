@@ -1,7 +1,7 @@
 package pmmap
 
 func zeroBit(key, bit keyt) bool {
-	return key & bit == 0
+	return key&bit == 0
 }
 
 // branchingBit returns a number with a single bit set at the first position

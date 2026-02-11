@@ -2,6 +2,7 @@ package pmmap
 
 import (
 	"fmt"
+	"maps"
 	"math/rand"
 	"testing"
 	"unsafe"
@@ -69,7 +70,7 @@ func BenchmarkInserts(b *testing.B) {
 	}
 }
 
-var blackhole interface{}
+var blackhole any
 
 func BenchmarkLookups(b *testing.B) {
 	var seq [benchmarkSize]int
@@ -87,7 +88,7 @@ func BenchmarkLookups(b *testing.B) {
 				}
 				b.ResetTimer()
 				for bi := 0; bi < b.N; bi++ {
-					for i := 0; i < benchmarkSize; i++ {
+					for i := range benchmarkSize {
 						res, _ = mp.Lookup(seq[i])
 					}
 				}
@@ -99,11 +100,11 @@ func BenchmarkLookups(b *testing.B) {
 	{
 		var key keyt
 		chain := New[int](NumericHasher[keyt]())
-		for i := 0; i < int(unsafe.Sizeof(key)); i++ {
+		for i := range int(unsafe.Sizeof(key)) {
 			chain = chain.Insert(1<<i, 0)
 		}
-		const subSize = 1<<6
-		for i := keyt(0); i < subSize; i++ {
+		const subSize = 1 << 6
+		for i := range keyt(subSize) {
 			if chain.hasher.Hash(i) != i {
 				b.Fatalf("Expected hash function to be the identity function!")
 			}
@@ -113,8 +114,8 @@ func BenchmarkLookups(b *testing.B) {
 		b.Run("tree-chain", func(b *testing.B) {
 			for bi := 0; bi < b.N; bi++ {
 				var res int
-				for i := 0; i < benchmarkSize/subSize; i++ {
-					for j := keyt(0); j < subSize; j++ {
+				for range benchmarkSize / subSize {
+					for j := range keyt(subSize) {
 						res, _ = chain.Lookup(j)
 					}
 				}
@@ -132,9 +133,7 @@ type MapSets struct{ maps []map[int]struct{} }
 
 func (m MapSets) Copy(src, dest int) {
 	a, b := m.maps[src], m.maps[dest]
-	for k, v := range a {
-		b[k] = v
-	}
+	maps.Copy(b, a)
 }
 
 type TreeSets struct{ trees []Tree[int, struct{}] }
@@ -171,7 +170,7 @@ func BenchmarkDAGReachability(b *testing.B) {
 	rnd := rand.New(rand.NewSource(0))
 
 	edges := [dagSize][]int{}
-	for i := 0; i < dagSize*20; i++ {
+	for range dagSize * 20 {
 		a := rnd.Intn(dagSize - 1)
 		b := a + 1 + rnd.Intn(dagSize-a-1)
 		edges[b] = append(edges[b], a)
@@ -181,7 +180,7 @@ func BenchmarkDAGReachability(b *testing.B) {
 		b.Run(simpl.name, func(b *testing.B) {
 			for bi := 0; bi < b.N; bi++ {
 				sets := simpl.factory(dagSize)
-				for i := 0; i < dagSize; i++ {
+				for i := range dagSize {
 					for _, j := range edges[i] {
 						sets.Copy(j, i)
 					}
