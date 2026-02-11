@@ -44,37 +44,11 @@ func (tree Tree[K, V]) hash(key K) keyt {
 
 // Lookup returns the value mapped to the provided key in the map.
 // The semantics are equivalent to those of 2-valued lookup in regular Go maps.
-func (tree Tree[K, V]) Lookup(key K) (ret V, found bool) {
-	node := tree.root
-	if node == nil {
+func (tree Tree[K, V]) Lookup(key K) (zero V, found bool) {
+	if tree.root == nil {
 		return
 	}
-
-	for hash := tree.hash(key); ; {
-		switch n := node.(type) {
-		case *leaf[K, V]:
-			if n.key == hash {
-				for _, pr := range n.values {
-					if tree.hasher.Equal(key, pr.key) {
-						return pr.value, true
-					}
-				}
-			}
-
-			return
-
-		case *branch[K, V]:
-			if !n.match(hash) {
-				return
-			} else if zeroBit(hash, n.branchBit) {
-				node = n.left
-			} else {
-				node = n.right
-			}
-		default:
-			panic("unreachable: unexpected node type")
-		}
-	}
+	return lookup(tree.root, tree.hash(key), key, tree.hasher)
 }
 
 // Insert the given key-value pair into the map.
@@ -233,10 +207,7 @@ func nodeSize[K, V any](n node[K, V]) int {
 
 // copy constructs a new leaf that inherits the values of this leaf.
 func (l *leaf[K, V]) copy() *leaf[K, V] {
-	return &leaf[K, V]{
-		l.key,
-		slices.Clone(l.values),
-	}
+	return &leaf[K, V]{l.key, slices.Clone(l.values)}
 }
 
 // iter yields all key-value pairs in the leaf, returning false if iteration was stopped early.
@@ -247,6 +218,33 @@ func (l *leaf[K, V]) iter(yield func(K, V) bool) bool {
 		}
 	}
 	return true
+}
+
+// lookup searches for key (with precomputed hash) in the subtree rooted at node.
+func lookup[K, V any](node node[K, V], hash keyt, key K, hasher Hasher[K]) (ret V, found bool) {
+	for {
+		switch n := node.(type) {
+		case *leaf[K, V]:
+			if n.key == hash {
+				for _, pr := range n.values {
+					if hasher.Equal(key, pr.key) {
+						return pr.value, true
+					}
+				}
+			}
+			return
+		case *branch[K, V]:
+			if !n.match(hash) {
+				return
+			} else if zeroBit(hash, n.branchBit) {
+				node = n.left
+			} else {
+				node = n.right
+			}
+		default:
+			panic("unreachable: unexpected node type")
+		}
+	}
 }
 
 // Smart branch constructor
@@ -447,12 +445,12 @@ func merge[K, V any](a, b node[K, V], hasher Hasher[K], f MergeFunc[V]) (node[K,
 		// s contains t
 		l, r := s.left, s.right
 		if zeroBit(t.prefix, s.branchBit) {
-			l, _ = merge(l, node[K, V](t), hasher, f)
+			l, _ = merge(l, t, hasher, f)
 			if l == s.left {
 				return s, false
 			}
 		} else {
-			r, _ = merge(r, node[K, V](t), hasher, f)
+			r, _ = merge(r, t, hasher, f)
 			if r == s.right {
 				return s, false
 			}
@@ -460,7 +458,7 @@ func merge[K, V any](a, b node[K, V], hasher Hasher[K], f MergeFunc[V]) (node[K,
 		return &branch[K, V]{s.prefix, s.branchBit, l, r, nodeSize(l) + nodeSize(r)}, false
 	} else {
 		// prefixes disagree
-		return join(s.prefix, t.prefix, node[K, V](s), node[K, V](t)), false
+		return join(s.prefix, t.prefix, s, t), false
 	}
 	// NOTE: The implementation of this function is complex because it is
 	// performance critical, and since the performance does not rely only on
