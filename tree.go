@@ -153,12 +153,8 @@ func (tree Tree[K, V]) Equal(other Tree[K, V], f func(V, V) bool) bool {
 }
 
 // Size returns the number of key-value pairs in the map.
-// NOTE: Runs in linear time in the size of the map.
-func (tree Tree[K, V]) Size() (res int) {
-	for range tree.All() {
-		res++
-	}
-	return
+func (tree Tree[K, V]) Size() int {
+	return nodeSize(tree.root)
 }
 
 func (tree Tree[K, V]) String() string {
@@ -202,6 +198,7 @@ type (
 		// determines where the prefixes of the left and right subtrees diverge.
 		branchBit   keyt
 		left, right node[K, V]
+		size        int
 	}
 	// pair encodes a key-value pair in leaves.
 	pair[K, V any] struct {
@@ -216,6 +213,7 @@ type (
 		// TODO: Since collisions should be rare it might be worth
 		// it to have a fast implementation when no collisions occur.
 		values []pair[K, V]
+		size   int
 	}
 )
 
@@ -230,11 +228,24 @@ func (b *branch[K, V]) match(key keyt) bool {
 	return (key & (b.branchBit - 1)) == b.prefix
 }
 
+// nodeSize returns the number of key-value pairs stored in the subtree rooted at n.
+func nodeSize[K, V any](n node[K, V]) int {
+	switch n := n.(type) {
+	case *leaf[K, V]:
+		return n.size
+	case *branch[K, V]:
+		return n.size
+	default:
+		return 0
+	}
+}
+
 // copy constructs a new leaf that inherits the values of this leaf.
 func (l *leaf[K, V]) copy() *leaf[K, V] {
 	return &leaf[K, V]{
 		l.key,
 		append([]pair[K, V](nil), l.values...),
+		l.size,
 	}
 }
 
@@ -256,7 +267,7 @@ func br[K, V any](prefix, branchBit keyt, left, right node[K, V]) node[K, V] {
 		return left
 	}
 
-	return &branch[K, V]{prefix, branchBit, left, right}
+	return &branch[K, V]{prefix, branchBit, left, right, nodeSize(left) + nodeSize(right)}
 }
 
 // join merges two trees t0 and t1 which have prefixes p0 and p1 respectively.
@@ -264,10 +275,11 @@ func br[K, V any](prefix, branchBit keyt, left, right node[K, V]) node[K, V] {
 func join[K, V any](p0, p1 keyt, t0, t1 node[K, V]) node[K, V] {
 	bbit := branchingBit(p0, p1)
 	prefix := p0 & (bbit - 1)
+	sz := nodeSize(t0) + nodeSize(t1)
 	if zeroBit(p0, bbit) {
-		return &branch[K, V]{prefix, bbit, t0, t1}
+		return &branch[K, V]{prefix, bbit, t0, t1, sz}
 	} else {
-		return &branch[K, V]{prefix, bbit, t1, t0}
+		return &branch[K, V]{prefix, bbit, t1, t0, sz}
 	}
 }
 
@@ -276,7 +288,7 @@ func join[K, V any](p0, p1 keyt, t0, t1 node[K, V]) node[K, V] {
 // If the returned flag is false, the returned node is (reference-)equal to the input node.
 func insert[K, V any](tree node[K, V], hash keyt, key K, value V, hasher Hasher[K], f MergeFunc[V]) (node[K, V], bool) {
 	if tree == nil {
-		return &leaf[K, V]{key: hash, values: []pair[K, V]{{key, value}}}, true
+		return &leaf[K, V]{key: hash, values: []pair[K, V]{{key, value}}, size: 1}, true
 	}
 
 	var prefix keyt
@@ -305,6 +317,7 @@ func insert[K, V any](tree node[K, V], hash keyt, key K, value V, hasher Hasher[
 			// Hash collision - append to list of values in leaf
 			lf := tree.copy()
 			lf.values = append(lf.values, pair[K, V]{key, value})
+			lf.size++
 			return lf, true
 		}
 
@@ -322,7 +335,7 @@ func insert[K, V any](tree node[K, V], hash keyt, key K, value V, hasher Hasher[
 			if !changed {
 				return tree, false
 			}
-			return &branch[K, V]{tree.prefix, tree.branchBit, l, r}, true
+			return &branch[K, V]{tree.prefix, tree.branchBit, l, r, nodeSize(l) + nodeSize(r)}, true
 		}
 
 		prefix = tree.prefix
@@ -355,6 +368,7 @@ func remove[K, V any](tree node[K, V], hash keyt, key K, hasher Hasher[K]) node[
 						tree.key,
 						// Remove the i'th entry
 						append(tree.values[:i:i], tree.values[i+1:]...),
+						tree.size - 1,
 					}
 				}
 			}
@@ -434,7 +448,7 @@ func merge[K, V any](a, b node[K, V], hasher Hasher[K], f MergeFunc[V]) (node[K,
 			return t, false
 		}
 
-		return &branch[K, V]{s.prefix, s.branchBit, l, r}, false
+		return &branch[K, V]{s.prefix, s.branchBit, l, r, nodeSize(l) + nodeSize(r)}, false
 	}
 
 	if s.branchBit > t.branchBit {
@@ -455,7 +469,7 @@ func merge[K, V any](a, b node[K, V], hasher Hasher[K], f MergeFunc[V]) (node[K,
 				return s, false
 			}
 		}
-		return &branch[K, V]{s.prefix, s.branchBit, l, r}, false
+		return &branch[K, V]{s.prefix, s.branchBit, l, r, nodeSize(l) + nodeSize(r)}, false
 	} else {
 		// prefixes disagree
 		return join(s.prefix, t.prefix, node[K, V](s), node[K, V](t)), false

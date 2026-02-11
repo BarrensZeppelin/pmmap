@@ -286,11 +286,24 @@ func TestRemove(t *testing.T) {
 	for range iterations {
 		tree := New[uint32](uint32Hasher)
 
+		if sz := tree.Size(); sz != 0 {
+			t.Error("Expected empty tree size 0, was", sz)
+		}
+
 		var keys []uint32
-		for range N {
+		for i := range N {
 			k := rand.Uint32()
 			keys = append(keys, k)
 			tree = tree.Insert(k, k)
+			if sz := tree.Size(); sz != i+1 {
+				t.Errorf("After %d inserts, Size() = %d", i+1, sz)
+			}
+		}
+
+		// Re-insert an existing key; size should not change.
+		replaced := tree.Insert(keys[0], keys[0]+1)
+		if sz := replaced.Size(); sz != N {
+			t.Errorf("After value replacement, Size() = %d, expected %d", sz, N)
 		}
 
 		rand.Shuffle(N, func(i, j int) {
