@@ -2,27 +2,41 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/BarrensZeppelin/pmmap.svg)](https://pkg.go.dev/github.com/BarrensZeppelin/pmmap)
 
-This package provides a Go implementation of a persistent key-value hash map with an efficient _merge_ operation.
 
-The maps are immutable, so modifying operations (inserts and removals) return a copy of the map with the operation applied.
+This package provides a Go implementation of persistent (immutable) hash-based collections with efficient _merge_ and _equality_ operations.
 
 The backing data structure is a [patricia trie](https://en.wikipedia.org/wiki/Radix_tree#PATRICIA) on key hashes.
 
 ## Usage
 
-The map uses generics to make the API ergonomic. Therefore Go 1.18+ is required.
+Go 1.24+ is required.
 
 Install: `go get github.com/BarrensZeppelin/pmmap`
 
+### Map
+
 ```go
-hasher := pmmap.NumericHasher[int]()
+hasher := pmmap.NumericHasher[int]{}
 map0 := pmmap.New[string](hasher)
 map1 := map0.Insert(42, "Hello World")
 fmt.Println(map0.Lookup(42)) // "", false
 fmt.Println(map1.Lookup(42)) // "Hello World", true
 ```
 
-To create a map with key type `K` you must supply an implementation of `Hasher[K]`:
+### Set
+
+`Set[K]` is a thin wrapper around the map with a simplified API:
+
+```go
+hasher := pmmap.NumericHasher[int]{}
+s := pmmap.NewSet(hasher).Insert(1).Insert(2).Insert(3)
+fmt.Println(s.Contains(2)) // true
+fmt.Println(s.Size())      // 3
+```
+
+### Hashers
+
+To create a collection with key type `K` you must supply an implementation of `Hasher[K]`:
 
 ```go
 type Hasher[K any] interface {
@@ -31,7 +45,14 @@ type Hasher[K any] interface {
 }
 ```
 
-Default hasher implementations are included for numeric types and strings.
+Built-in hashers:
+
+| Hasher | Key constraint | Notes |
+|---|---|---|
+| `NumericHasher[T]{}` | `~int`, `~uint`, etc. | Identity hash |
+| `StringHasher[T]{}` | `~string` | |
+| `PointerHasher[T]{}` | `*T` | Hashes by memory address |
+| `NewComparableHasher[T]()` | `comparable` | Uses `maphash.Comparable`; slower but high-quality hash |
 
 ## Merges
 
