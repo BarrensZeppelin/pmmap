@@ -6,8 +6,8 @@ import (
 	"testing"
 )
 
-var intHasher Hasher[int] = numericHasher[int]{}
-var uint32Hasher Hasher[uint32] = numericHasher[uint32]{}
+var intHasher Hasher[int] = NumericHasher[int]{}
+var uint32Hasher Hasher[uint32] = NumericHasher[uint32]{}
 
 func testLookup[K any, V comparable](
 	t *testing.T, tree Tree[K, V],
@@ -317,7 +317,7 @@ func TestRemove(t *testing.T) {
 }
 
 func Example() {
-	hasher := NumericHasher[int]()
+	hasher := NumericHasher[int]{}
 	tree0 := New[int](hasher)
 	tree1 := tree0.Insert(5, 6)
 	fmt.Println(tree0)

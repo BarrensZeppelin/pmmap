@@ -99,7 +99,7 @@ func BenchmarkLookups(b *testing.B) {
 
 	{
 		var key keyt
-		chain := New[int](NumericHasher[keyt]())
+		chain := New[int](NumericHasher[keyt]{})
 		for i := range int(unsafe.Sizeof(key)) {
 			chain = chain.Insert(1<<i, 0)
 		}

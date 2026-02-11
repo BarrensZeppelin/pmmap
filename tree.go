@@ -17,8 +17,6 @@ import (
 // Construct a new persistent key-value map with the specified hasher.
 func New[V, K any](hasher Hasher[K]) Tree[K, V] {
 	// Order of K and V is swapped because K can be inferred from the argument.
-	// TODO: Check if type inference is better in Go 1.19
-	//  https://github.com/golang/go/issues/41176
 	return Tree[K, V]{hasher, nil}
 }
 
