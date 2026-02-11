@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"iter"
 	"math/bits"
+	"slices"
 )
 
 // Construct a new persistent key-value map with the specified hasher.
@@ -71,7 +72,7 @@ func (tree Tree[K, V]) Lookup(key K) (ret V, found bool) {
 				node = n.right
 			}
 		default:
-			panic("Impossible: unknown tree root type.")
+			panic("unreachable: unexpected node type")
 		}
 	}
 }
@@ -126,13 +127,6 @@ func (tree Tree[K, V]) Values() iter.Seq[V] {
 	}
 }
 
-// Call the given function once for each key-value pair in the map.
-func (tree Tree[K, V]) ForEach(f func(key K, value V)) {
-	for k, v := range tree.All() {
-		f(k, v)
-	}
-}
-
 // Merges two maps. If both maps contain a value for a key, the resulting map
 // will map the key to the result of `f` on the two values.
 //
@@ -158,12 +152,10 @@ func (tree Tree[K, V]) Size() int {
 }
 
 func (tree Tree[K, V]) String() string {
-	buf := []string{}
-
-	tree.ForEach(func(k K, v V) {
+	buf := make([]string, 0, tree.Size())
+	for k, v := range tree.All() {
 		buf = append(buf, fmt.Sprintf("%v ↦ %v", k, v))
-	})
-
+	}
 	return fmt.Sprintf("tree%s", buf)
 }
 
@@ -213,7 +205,6 @@ type (
 		// TODO: Since collisions should be rare it might be worth
 		// it to have a fast implementation when no collisions occur.
 		values []pair[K, V]
-		size   int
 	}
 )
 
@@ -232,7 +223,7 @@ func (b *branch[K, V]) match(key keyt) bool {
 func nodeSize[K, V any](n node[K, V]) int {
 	switch n := n.(type) {
 	case *leaf[K, V]:
-		return n.size
+		return len(n.values)
 	case *branch[K, V]:
 		return n.size
 	default:
@@ -244,8 +235,7 @@ func nodeSize[K, V any](n node[K, V]) int {
 func (l *leaf[K, V]) copy() *leaf[K, V] {
 	return &leaf[K, V]{
 		l.key,
-		append([]pair[K, V](nil), l.values...),
-		l.size,
+		slices.Clone(l.values),
 	}
 }
 
@@ -288,7 +278,7 @@ func join[K, V any](p0, p1 keyt, t0, t1 node[K, V]) node[K, V] {
 // If the returned flag is false, the returned node is (reference-)equal to the input node.
 func insert[K, V any](tree node[K, V], hash keyt, key K, value V, hasher Hasher[K], f MergeFunc[V]) (node[K, V], bool) {
 	if tree == nil {
-		return &leaf[K, V]{key: hash, values: []pair[K, V]{{key, value}}, size: 1}, true
+		return &leaf[K, V]{key: hash, values: []pair[K, V]{{key, value}}}, true
 	}
 
 	var prefix keyt
@@ -317,7 +307,6 @@ func insert[K, V any](tree node[K, V], hash keyt, key K, value V, hasher Hasher[
 			// Hash collision - append to list of values in leaf
 			lf := tree.copy()
 			lf.values = append(lf.values, pair[K, V]{key, value})
-			lf.size++
 			return lf, true
 		}
 
@@ -341,7 +330,7 @@ func insert[K, V any](tree node[K, V], hash keyt, key K, value V, hasher Hasher[
 		prefix = tree.prefix
 
 	default:
-		panic("Impossible: unknown tree root type.")
+		panic("unreachable: unexpected node type")
 	}
 
 	newLeaf, _ := insert(nil, hash, key, value, nil, nil)
@@ -368,7 +357,6 @@ func remove[K, V any](tree node[K, V], hash keyt, key K, hasher Hasher[K]) node[
 						tree.key,
 						// Remove the i'th entry
 						append(tree.values[:i:i], tree.values[i+1:]...),
-						tree.size - 1,
 					}
 				}
 			}
@@ -391,7 +379,7 @@ func remove[K, V any](tree node[K, V], hash keyt, key K, hasher Hasher[K]) node[
 			return br(tree.prefix, tree.branchBit, left, right)
 		}
 	default:
-		panic("Impossible: unknown tree root type.")
+		panic("unreachable: unexpected node type")
 	}
 
 	return tree
@@ -490,7 +478,7 @@ func equal[K, V any](a, b node[K, V], hasher Hasher[K], f func(V, V) bool) bool 
 	switch a := a.(type) {
 	case *leaf[K, V]:
 		b, ok := b.(*leaf[K, V])
-		if !ok || len(a.values) != len(b.values) {
+		if !ok || a.key != b.key || len(a.values) != len(b.values) {
 			return false
 		}
 
@@ -518,10 +506,10 @@ func equal[K, V any](a, b node[K, V], hasher Hasher[K], f func(V, V) bool) bool 
 			return false
 		}
 
-		return a.prefix == b.prefix && a.branchBit == b.branchBit &&
+		return a.prefix == b.prefix && a.branchBit == b.branchBit && a.size == b.size &&
 			equal(a.left, b.left, hasher, f) && equal(a.right, b.right, hasher, f)
 
 	default:
-		panic("Impossible: unknown tree root type.")
+		panic("unreachable: unexpected node type")
 	}
 }
