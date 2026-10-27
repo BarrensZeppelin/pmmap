@@ -8,6 +8,8 @@ import (
 // Set represents a persistent hash set backed by a [Tree].
 //
 // All mutating operations return a new set, leaving the original unchanged.
+//
+// The zero value is not a valid set; use [NewSet].
 type Set[K any] struct{ m Tree[K, struct{}] }
 
 // NewSet constructs a new persistent set with the specified hasher.
@@ -36,6 +38,8 @@ func (s Set[K]) Remove(key K) Set[K] {
 // Union returns the union of two sets.
 //
 // This operation is made fast by skipping processing of shared subtrees.
+//
+// Both sets must use the same hash function.
 func (s Set[K]) Union(other Set[K]) Set[K] {
 	s.m = s.m.Merge(other.m, func(a, _ struct{}) (struct{}, bool) {
 		return a, true
@@ -46,6 +50,8 @@ func (s Set[K]) Union(other Set[K]) Set[K] {
 // IntersectionSize returns the number of elements present in both sets.
 //
 // This operation is made fast by skipping processing of shared subtrees.
+//
+// Both sets must use the same hash function.
 func (s Set[K]) IntersectionSize(other Set[K]) int {
 	if s.m.root == nil || other.m.root == nil {
 		return 0
@@ -105,6 +111,8 @@ func intersectionSize[K any](a, b node[K, struct{}], hasher Hasher[K]) int {
 // Equal reports whether two sets contain the same keys.
 //
 // This operation is made fast by skipping processing of shared subtrees.
+//
+// Both sets must use the same hash function.
 func (s Set[K]) Equal(other Set[K]) bool {
 	return s.m.Equal(other.m, func(_, _ struct{}) bool { return true })
 }

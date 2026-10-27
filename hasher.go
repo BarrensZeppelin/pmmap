@@ -9,7 +9,7 @@ import (
 // The Hasher type provides a way to hash values as well as compare them for
 // equality.
 //
-// The implementation guarantees that the hash function is called exactly once
+// The implementation guarantees that the hash function is called at most once
 // for lookup, insertion and removal.
 type Hasher[K any] interface {
 	Equal(a, b K) bool

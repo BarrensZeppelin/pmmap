@@ -28,6 +28,8 @@ func New[V, K any](hasher Hasher[K]) Tree[K, V] {
 // are scanned at lookups.
 //
 // Hash values of keys must not change while they are stored in the map.
+//
+// The zero value is not a valid map; use [New].
 type Tree[K, V any] struct {
 	hasher Hasher[K]
 	root   node[K, V]
@@ -101,14 +103,18 @@ func (tree Tree[K, V]) Values() iter.Seq[V] {
 	}
 }
 
-// Merges two maps. If both maps contain a value for a key, the resulting map
+// Merge two maps. If both maps contain a value for a key, the resulting map
 // will map the key to the result of `f` on the two values.
 //
 // See the documentation for MergeFunc for conditions that `f` must satisfy.
 // No guarantees are made about the order of arguments provided to `f`.
+// If `f` is nil, the value for a key present in both maps is taken from an
+// unspecified one of the two maps.
 //
 // This operation is made fast by skipping processing of shared subtrees.
 // Merging a tree with itself after r updates takes linear time in r.
+//
+// Both maps must use the same hash function.
 func (tree Tree[K, V]) Merge(other Tree[K, V], f MergeFunc[V]) Tree[K, V] {
 	tree.root, _ = merge(tree.root, other.root, tree.hasher, f)
 	return tree
@@ -116,6 +122,8 @@ func (tree Tree[K, V]) Merge(other Tree[K, V], f MergeFunc[V]) Tree[K, V] {
 
 // Equal checks whether two maps are equal. Values are compared with the provided
 // function. This operation also skips processing of shared subtrees.
+//
+// Both maps must use the same hash function.
 func (tree Tree[K, V]) Equal(other Tree[K, V], f func(V, V) bool) bool {
 	return equal(tree.root, other.root, tree.hasher, f)
 }
