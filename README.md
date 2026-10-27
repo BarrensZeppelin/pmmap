@@ -52,7 +52,7 @@ Built-in hashers:
 | `NumericHasher[T]{}` | `~int`, `~uint`, etc. | Identity hash |
 | `StringHasher[T]{}` | `~string` | |
 | `PointerHasher[T]{}` | `*T` | Hashes by memory address |
-| `NewComparableHasher[T]()` | `comparable` | Uses `maphash.Comparable`; slower but high-quality hash |
+| `ComparableHasher[T]{}` | `comparable` | Uses `maphash.Comparable`; slower but high-quality hash |
 
 ## Merges
 

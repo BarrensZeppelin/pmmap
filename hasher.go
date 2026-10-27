@@ -45,14 +45,14 @@ type PointerHasher[T any] struct{}
 func (PointerHasher[T]) Equal(a, b *T) bool { return a == b }
 func (PointerHasher[T]) Hash(p *T) uint64   { return uint64(uintptr(unsafe.Pointer(p))) }
 
+// Shared by all ComparableHasher instances so that maps built with separate
+// instances can be merged and compared.
+var comparableSeed = maphash.MakeSeed()
+
 // ComparableHasher hashes any comparable type using maphash.Comparable.
-// Each instance carries its own seed; create instances with NewComparableHasher.
+// Hashes are stable within a process but differ between runs.
 // This hasher is slower but the hash function is much better than the others.
-type ComparableHasher[T comparable] struct{ seed maphash.Seed }
+type ComparableHasher[T comparable] struct{}
 
-func NewComparableHasher[T comparable]() ComparableHasher[T] {
-	return ComparableHasher[T]{seed: maphash.MakeSeed()}
-}
-
-func (h ComparableHasher[T]) Equal(a, b T) bool { return a == b }
-func (h ComparableHasher[T]) Hash(a T) uint64   { return maphash.Comparable(h.seed, a) }
+func (ComparableHasher[T]) Equal(a, b T) bool { return a == b }
+func (ComparableHasher[T]) Hash(a T) uint64   { return maphash.Comparable(comparableSeed, a) }
