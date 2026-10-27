@@ -46,7 +46,7 @@ func (tree Tree[K, V]) hash(key K) keyt {
 
 // Lookup returns the value mapped to the provided key in the map.
 // The semantics are equivalent to those of 2-valued lookup in regular Go maps.
-func (tree Tree[K, V]) Lookup(key K) (zero V, found bool) {
+func (tree Tree[K, V]) Lookup(key K) (value V, found bool) {
 	if tree.root == nil {
 		return
 	}
@@ -84,10 +84,8 @@ func (tree Tree[K, V]) All() iter.Seq2[K, V] {
 // Keys returns an iterator over all keys in the map.
 func (tree Tree[K, V]) Keys() iter.Seq[K] {
 	return func(yield func(K) bool) {
-		for k, _ := range tree.All() {
-			if !yield(k) {
-				return
-			}
+		if tree.root != nil {
+			tree.root.iter(func(k K, _ V) bool { return yield(k) })
 		}
 	}
 }
@@ -95,10 +93,8 @@ func (tree Tree[K, V]) Keys() iter.Seq[K] {
 // Values returns an iterator over all values in the map.
 func (tree Tree[K, V]) Values() iter.Seq[V] {
 	return func(yield func(V) bool) {
-		for _, v := range tree.All() {
-			if !yield(v) {
-				return
-			}
+		if tree.root != nil {
+			tree.root.iter(func(_ K, v V) bool { return yield(v) })
 		}
 	}
 }
