@@ -50,7 +50,6 @@ Built-in hashers:
 | Hasher | Key constraint | Notes |
 |---|---|---|
 | `NumericHasher[T]{}` | `~int`, `~uint`, etc. | Identity hash |
-| `StringHasher[T]{}` | `~string` | |
 | `PointerHasher[T]{}` | `*T` | Hashes by memory address |
 | `ComparableHasher[T]{}` | `comparable` | Uses `maphash.Comparable`; slower but high-quality hash |
 

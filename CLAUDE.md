@@ -16,7 +16,7 @@ Single-package Go library implementing a persistent (immutable) mergeable hash m
 **Source files:**
 - `tree.go` — `Tree[K,V]` (public API: Lookup, Insert, Remove, Merge, Equal, iterators) and internal trie implementation (`node` interface, `branch`, `leaf`, and node-level operations such as `merge`, `equal`, `intersectionSize`)
 - `set.go` — `Set[K]`, a thin wrapper around `Tree[K, struct{}]`; it reads `Tree` internals (`root`, `hasher`) and calls node-level operations directly
-- `hasher.go` — `Hasher[K]` interface and built-in hashers (`NumericHasher[T]`, `StringHasher[T]`, `PointerHasher[T]`, `ComparableHasher[T]`)
+- `hasher.go` — `Hasher[K]` interface and built-in hashers (`NumericHasher[T]`, `PointerHasher[T]`, `ComparableHasher[T]`)
 - `lib.go` — bit-manipulation helpers (`zeroBit`, `branchingBit`)
 
 **Key types:**

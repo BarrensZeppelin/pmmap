@@ -2,7 +2,6 @@ package pmmap
 
 import (
 	"hash/maphash"
-	"math/bits"
 	"unsafe"
 )
 
@@ -25,18 +24,6 @@ type NumericHasher[T Numeric] struct{}
 
 func (NumericHasher[T]) Equal(a, b T) bool { return a == b }
 func (NumericHasher[T]) Hash(a T) uint64   { return uint64(a) }
-
-type StringHasher[T ~string] struct{}
-
-func (StringHasher[T]) Equal(a, b T) bool { return a == b }
-func (StringHasher[T]) Hash(a T) (res uint64) {
-	// TODO: This is bad because the two halves of the output are
-	//  formed independently by the even and odd characters...
-	for _, c := range a {
-		res = bits.RotateLeft64(res, 32) ^ uint64(c)
-	}
-	return res
-}
 
 // PointerHasher hashes pointers by their memory address.
 // Go's GC is non-moving, so addresses are stable for the lifetime of an object.
