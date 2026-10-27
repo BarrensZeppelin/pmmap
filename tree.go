@@ -354,11 +354,8 @@ func remove[K, V any](tree node[K, V], hash keyt, key K, hasher Hasher[K]) node[
 						return nil
 					}
 
-					return &leaf[K, V]{
-						tree.key,
-						// Remove the i'th entry
-						append(tree.values[:i:i], tree.values[i+1:]...),
-					}
+					// Concat always allocates, so the removed entry is not kept reachable.
+					return &leaf[K, V]{tree.key, slices.Concat(tree.values[:i], tree.values[i+1:])}
 				}
 			}
 		}

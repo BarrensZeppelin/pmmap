@@ -3,7 +3,9 @@ package pmmap
 import (
 	"fmt"
 	"math/rand"
+	"runtime"
 	"testing"
+	"time"
 )
 
 var intHasher Hasher[int] = NumericHasher[int]{}
@@ -336,6 +338,49 @@ func TestRemove(t *testing.T) {
 		for _, k := range keys[N_remove:] {
 			hit(tree, k, k)
 		}
+	}
+}
+
+func TestRemoveFromBucketReleasesEntry(t *testing.T) {
+	const N = 3
+	for i := range N {
+		released := make(chan struct{})
+		tree := func() Tree[int, *[128]byte] {
+			tree := New[*[128]byte](Hasher[int](badHasher[int]{}))
+			for k := range N {
+				v := new([128]byte)
+				if k == i {
+					runtime.AddCleanup(v, func(struct{}) { close(released) }, struct{}{})
+				}
+				tree = tree.Insert(k, v)
+			}
+			return tree.Remove(i)
+		}()
+
+		for k := range N {
+			if _, found := tree.Lookup(k); found != (k != i) {
+				t.Errorf("After removing %d, Lookup(%d) found = %v", i, k, found)
+			}
+		}
+		if sz := tree.Size(); sz != N-1 {
+			t.Errorf("After removing %d, Size() = %d", i, sz)
+		}
+
+		waitReleased := func() bool {
+			for range 100 {
+				runtime.GC()
+				select {
+				case <-released:
+					return true
+				case <-time.After(10 * time.Millisecond):
+				}
+			}
+			return false
+		}
+		if !waitReleased() {
+			t.Errorf("Value removed from position %d of bucket is still reachable", i)
+		}
+		runtime.KeepAlive(tree)
 	}
 }
 
