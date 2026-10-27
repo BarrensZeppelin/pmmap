@@ -172,7 +172,7 @@ func TestHistory(t *testing.T) {
 	}
 }
 
-func max(x, y int) (int, bool) {
+func maxMerge(x, y int) (int, bool) {
 	if x == y {
 		return x, true
 	}
@@ -199,14 +199,19 @@ func TestSimpleMerge(t *testing.T) {
 			}
 		}
 
-		check(a.Merge(b, max))
-		check(b.Merge(a, max))
+		check(a.Merge(b, maxMerge))
+		check(b.Merge(a, maxMerge))
 	}
 }
 
 func TestMergeWithEmpty(t *testing.T) {
-	a := New[int](intHasher).Insert(0, 0)
-	a.Merge(New[int](intHasher), max)
+	a := New[int](intHasher).Insert(0, 0).Insert(1, 1)
+	empty := New[int](intHasher)
+	for _, merged := range []Tree[int, int]{a.Merge(empty, maxMerge), empty.Merge(a, maxMerge)} {
+		if merged.root != a.root {
+			t.Errorf("Expected %p to be %p", merged.root, a.root)
+		}
+	}
 }
 
 func TestPointerEqualityAfterMerge(t *testing.T) {
@@ -248,7 +253,7 @@ func TestManyMerge(t *testing.T) {
 			for i := 0; i < 2*N; i++ {
 				v1, v2 := rand.Int(), rand.Int()
 				if i < N {
-					mp[i], _ = max(v1, v2)
+					mp[i], _ = maxMerge(v1, v2)
 					a = a.Insert(i, v1)
 					b = b.Insert(i, v2)
 				} else if i < 3*N/2 {
@@ -260,7 +265,7 @@ func TestManyMerge(t *testing.T) {
 				}
 			}
 
-			merged := a.Merge(b, max)
+			merged := a.Merge(b, maxMerge)
 			for k, v := range mp {
 				hit(merged, k, v)
 			}
@@ -291,8 +296,13 @@ func TestRemove(t *testing.T) {
 		}
 
 		var keys []uint32
+		seen := map[uint32]bool{}
 		for i := range N {
 			k := rand.Uint32()
+			for seen[k] {
+				k = rand.Uint32()
+			}
+			seen[k] = true
 			keys = append(keys, k)
 			tree = tree.Insert(k, k)
 			if sz := tree.Size(); sz != i+1 {
