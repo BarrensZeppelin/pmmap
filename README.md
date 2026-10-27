@@ -86,8 +86,8 @@ fmt.Println(
 			a, b = b, a
 		}
 		return a, a == b
-	})
-) // [42 ↦ Hello World 43 ↦ Goodbye]
+	}),
+) // tree[42 ↦ Hello World 43 ↦ Goodbye]
 ```
 
 The returned flag should be `true` iff. the two values are equal.
