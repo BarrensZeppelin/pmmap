@@ -311,9 +311,8 @@ func insert[K, V any](tree node[K, V], hash keyt, key K, value V, hasher Hasher[
 			}
 
 			// Hash collision - append to list of values in leaf
-			lf := tree.copy()
-			lf.values = append(lf.values, pair[K, V]{key, value})
-			return lf, true
+			values := append(slices.Clip(tree.values), pair[K, V]{key, value})
+			return &leaf[K, V]{tree.key, values}, true
 		}
 
 		prefix = tree.key
