@@ -394,15 +394,7 @@ func merge[K, V any](a, b node[K, V], hasher Hasher[K], f MergeFunc[V]) (node[K,
 		return a, false
 	}
 
-	// Check if either a or b is a leaf
-	lf, isLeaf := a.(*leaf[K, V])
-	other := b
-	if !isLeaf {
-		lf, isLeaf = b.(*leaf[K, V])
-		other = a
-	}
-
-	if isLeaf {
+	if lf, other, isLeaf := leafAndOther(a, b); isLeaf {
 		originalOther := other
 		for _, pr := range lf.values {
 			other, _ = insert(other, lf.key, pr.key, pr.value, hasher, f)
@@ -421,9 +413,9 @@ func merge[K, V any](a, b node[K, V], hasher Hasher[K], f MergeFunc[V]) (node[K,
 		return other, false
 	}
 
-	// Both a and b are branches
-	s, t := a.(*branch[K, V]), b.(*branch[K, V])
-	if s.branchBit == t.branchBit && s.prefix == t.prefix {
+	s, t, o := classify(a.(*branch[K, V]), b.(*branch[K, V]))
+	switch o {
+	case sameRange:
 		l, leq := merge(s.left, t.left, hasher, f)
 		r, req := merge(s.right, t.right, hasher, f)
 		if leq && req {
@@ -435,14 +427,8 @@ func merge[K, V any](a, b node[K, V], hasher Hasher[K], f MergeFunc[V]) (node[K,
 		}
 
 		return &branch[K, V]{s.prefix, s.branchBit, l, r, nodeSize(l) + nodeSize(r)}, false
-	}
 
-	if s.branchBit > t.branchBit {
-		s, t = t, s
-	}
-
-	if s.branchBit < t.branchBit && s.match(t.prefix) {
-		// s contains t
+	case contains:
 		l, r := s.left, s.right
 		if zeroBit(t.prefix, s.branchBit) {
 			l, _ = merge(l, t, hasher, f)
@@ -456,14 +442,84 @@ func merge[K, V any](a, b node[K, V], hasher Hasher[K], f MergeFunc[V]) (node[K,
 			}
 		}
 		return &branch[K, V]{s.prefix, s.branchBit, l, r, nodeSize(l) + nodeSize(r)}, false
-	} else {
-		// prefixes disagree
+
+	default:
 		return join(s.prefix, t.prefix, s, t), false
 	}
 	// NOTE: The implementation of this function is complex because it is
 	// performance critical, and since the performance does not rely only on
 	// the implementation within this function. Using shared subtrees speeds
 	// up future merge/equal operations on the result, which is important.
+}
+
+// intersectionSize returns the number of keys present in both trees.
+func intersectionSize[K, V any](a, b node[K, V], hasher Hasher[K]) int {
+	if a == b {
+		return nodeSize(a)
+	} else if a == nil || b == nil {
+		return 0
+	}
+
+	if lf, other, isLeaf := leafAndOther(a, b); isLeaf {
+		count := 0
+		for _, pr := range lf.values {
+			if _, found := lookup(other, lf.key, pr.key, hasher); found {
+				count++
+			}
+		}
+		return count
+	}
+
+	s, t, o := classify(a.(*branch[K, V]), b.(*branch[K, V]))
+	switch o {
+	case sameRange:
+		return intersectionSize(s.left, t.left, hasher) +
+			intersectionSize(s.right, t.right, hasher)
+	case contains:
+		sub := s.right
+		if zeroBit(t.prefix, s.branchBit) {
+			sub = s.left
+		}
+		return intersectionSize(sub, t, hasher)
+	default:
+		return 0
+	}
+}
+
+// leafAndOther returns whichever of a and b is a leaf (preferring a) along
+// with the other node. isLeaf is false if both are branches.
+func leafAndOther[K, V any](a, b node[K, V]) (lf *leaf[K, V], other node[K, V], isLeaf bool) {
+	if lf, isLeaf = a.(*leaf[K, V]); isLeaf {
+		return lf, b, true
+	}
+	lf, isLeaf = b.(*leaf[K, V])
+	return lf, a, isLeaf
+}
+
+// overlap describes how the key ranges of two branches relate.
+type overlap int
+
+const (
+	disjoint overlap = iota
+	sameRange
+	contains
+)
+
+// classify determines how the key ranges of s and t relate.
+// For sameRange, the branches are returned in their original order;
+// otherwise the first has the lower branch bit, and for contains it contains
+// the second.
+func classify[K, V any](s, t *branch[K, V]) (*branch[K, V], *branch[K, V], overlap) {
+	if s.branchBit == t.branchBit && s.prefix == t.prefix {
+		return s, t, sameRange
+	}
+	if s.branchBit > t.branchBit {
+		s, t = t, s
+	}
+	if s.branchBit < t.branchBit && s.match(t.prefix) {
+		return s, t, contains
+	}
+	return s, t, disjoint
 }
 
 func equal[K, V any](a, b node[K, V], hasher Hasher[K], f func(V, V) bool) bool {
